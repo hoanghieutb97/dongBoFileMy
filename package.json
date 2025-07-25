@@ -1,0 +1,26 @@
+{
+  "name": "dongbofile",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon yourScript.js",
+    "start": "pm2 start index.js",
+    "stop": "pm2 stop index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.848.0",
+    "@aws-sdk/lib-storage": "^3.848.0",
+    "archiver": "^7.0.1",
+    "axios": "^1.7.2",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "ngrok": "^5.0.0-beta.2",
+    "nodemon": "^3.1.4",
+    "pm2": "^5.4.2",
+    "socket.io": "^4.7.5"
+  }
+}
