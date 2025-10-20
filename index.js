@@ -229,7 +229,7 @@ app.post('/webhook/trello', async (req, res) => {
                 
                 try {
                     // Sử dụng rclone để upload folder
-                    const command = `rclone copy "${localFolderPath}" idrivee2:custom-shape/${s3Path} --exclude "file tool/**" --progress --transfers 4`;
+                    const command = `rclone copy "${localFolderPath}" "idrivee2:custom-shape/${s3Path}" --exclude "file tool/**" --progress --transfers 4`;
                     
                     console.log(`🔄 Uploading with rclone: ${command}`);
                     const { stdout, stderr } = await execAsync(command);
@@ -305,7 +305,7 @@ app.post('/webhook/trello', async (req, res) => {
                 
                 try {
                     // Sử dụng rclone để xóa folder cũ (nếu có)
-                    const deleteCommand = `rclone purge idrivee2:custom-shape/${s3Path} --progress`;
+                    const deleteCommand = `rclone purge "idrivee2:custom-shape/${s3Path}" --progress`;
                     console.log(`🧹 Cleaning folder: ${deleteCommand}`);
                     
                     try {
