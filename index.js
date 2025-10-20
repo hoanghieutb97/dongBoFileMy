@@ -228,20 +228,30 @@ app.post('/webhook/trello', async (req, res) => {
                 const s3Path = `${nameF}/${bucketName}/`;
                 
                 try {
-                    // Sử dụng rclone để upload folder
-                    const command = `rclone copy "${localFolderPath}" "idrivee2:custom-shape/${s3Path}" --exclude "file tool/**" --progress --transfers 4`;
-                    
-                    console.log(`🔄 Uploading with rclone: ${command}`);
-                    const { stdout, stderr } = await execAsync(command);
-                    
-                    if (stderr && !stderr.includes('Transferred:')) {
-                        console.error('rclone stderr:', stderr);
+                    // Retry đơn giản: thử tối đa 3 lần với backoff 5s, 10s
+                    const maxAttempts = 3;
+                    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                        const command = `rclone copy "${localFolderPath}" "idrivee2:custom-shape/${s3Path}" --exclude "file tool/**" --progress --transfers 4 --retries 5 --retries-sleep 10s --low-level-retries 10`;
+                        console.log(`🔄 Uploading with rclone (attempt ${attempt}/${maxAttempts}): ${command}`);
+                        try {
+                            const { stdout, stderr } = await execAsync(command);
+                            if (stderr && !stderr.includes('Transferred:')) {
+                                console.error('rclone stderr:', stderr);
+                            }
+                            console.log('✅ Upload completed with rclone');
+                            return true;
+                        } catch (err) {
+                            console.error(`⚠️  rclone upload error (attempt ${attempt}):`, err.message);
+                            if (attempt < maxAttempts) {
+                                const waitMs = attempt * 5000; // 5s, 10s
+                                await new Promise(r => setTimeout(r, waitMs));
+                                continue;
+                            }
+                            throw err; // ném để catch ngoài xử lý gắn nhãn lỗi
+                        }
                     }
-                    
-                    console.log('✅ Upload completed with rclone');
-                    return true;
                 } catch (error) {
-                    console.error('❌ rclone upload error:', error.message);
+                    console.error('❌ rclone upload error (final):', error.message);
                     return false;
                 }
             }
@@ -402,7 +412,7 @@ app.post('/webhook/trello', async (req, res) => {
 
                             } catch (error) {
                                 axios.post(`https://api.trello.com/1/cards/${req.body.action.data.card.id}/idLabels`, {
-                                    value: "6881b2fdb1c5355068bdfcee",
+                                    value: "68f60ffda8e84eec93dbd93f",
                                     key: 'eaab65cdb6b3f930891953f93327e65e',
                                     token: "ATTA9890326a872fc0376b216d80d4582602fcf88703471fda6cb1b13f33b6c9702008C31C28"
                                 }).then(res => {
