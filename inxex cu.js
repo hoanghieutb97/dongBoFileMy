@@ -220,30 +220,38 @@ app.post('/webhook/trello', async (req, res) => {
             }
 
             async function uploadFolderToCustomShape(localFolderPath, bucketName, nameFolder, prefix = '') {
-                const { exec } = require('child_process');
-                const { promisify } = require('util');
-                const execAsync = promisify(exec);
 
                 const nameF = nameFolder.split("-").slice(4, 6).join('-'); // ex: across-back
-                const s3Path = `${nameF}/${bucketName}/`;
-                
-                try {
-                    // Sử dụng rclone để upload folder
-                    const command = `rclone copy "${localFolderPath}" idrivee2:custom-shape/${s3Path} --exclude "file tool/**" --progress --transfers 4`;
-                    
-                    console.log(`🔄 Uploading with rclone: ${command}`);
-                    const { stdout, stderr } = await execAsync(command);
-                    
-                    if (stderr && !stderr.includes('Transferred:')) {
-                        console.error('rclone stderr:', stderr);
+                const entries = await fsPromises.readdir(localFolderPath, { withFileTypes: true });
+
+                for (const entry of entries) {
+                    if (entry.name.toLowerCase() === 'file tool') continue; // ⛔ bỏ qua thư mục file-tool
+                    const fullPath = path.join(localFolderPath, entry.name);
+
+                    // Tạo key nằm trong bucketName như một "folder"
+                    const s3Key = path.posix.join(nameF, bucketName, prefix, entry.name);
+
+                    if (entry.isDirectory()) {
+                        await uploadFolderToCustomShape(fullPath, bucketName, nameFolder, path.posix.join(prefix, entry.name));
+                    } else {
+                        const fileStream = fs.createReadStream(fullPath);
+
+                        const upload = new Upload({
+                            client: s3,
+                            params: {
+                                Bucket: 'custom-shape',
+                                Key: s3Key,
+                                Body: fileStream,
+                            },
+                        });
+                        await upload.done();
+
+
                     }
-                    
-                    console.log('✅ Upload completed with rclone');
-                    return true;
-                } catch (error) {
-                    console.error('❌ rclone upload error:', error.message);
-                    return false;
                 }
+                return true
+
+
             }
 
             async function ensureEmptyBucket(bucketName) {
@@ -296,29 +304,61 @@ app.post('/webhook/trello', async (req, res) => {
                 }
             }
             async function createOrResetFolder(bucketName, nameFolder) {
-                const { exec } = require('child_process');
-                const { promisify } = require('util');
-                const execAsync = promisify(exec);
-
+                const Bucket = 'custom-shape';
                 const nameF = nameFolder.split("-").slice(4, 6).join('-'); // ex: across-back
-                const s3Path = `${nameF}/${bucketName}/`;
-                
+                const prefixNameF = `${nameF}/`; // folder chính
+                const prefixSubFolder = `${nameF}/${bucketName}/`; // folder con
+
                 try {
-                    // Sử dụng rclone để xóa folder cũ (nếu có)
-                    const deleteCommand = `rclone purge idrivee2:custom-shape/${s3Path} --progress`;
-                    console.log(`🧹 Cleaning folder: ${deleteCommand}`);
-                    
-                    try {
-                        await execAsync(deleteCommand);
-                        console.log(`✅ Cleaned folder: ${s3Path}`);
-                    } catch (deleteError) {
-                        // Folder có thể không tồn tại, không cần báo lỗi
-                        console.log(`ℹ️  Folder ${s3Path} may not exist yet`);
+                    // 1. Lấy toàn bộ object trong folder nameF
+                    const listCmd = new ListObjectsV2Command({ Bucket, Prefix: prefixNameF });
+                    const listResult = await s3.send(listCmd);
+
+                    // Kiểm tra xem folder nameF có tồn tại chưa
+                    const hasNameF = listResult.Contents && listResult.Contents.length > 0;
+
+                    if (!hasNameF) {
+                        // Nếu nameF chưa có → tạo folder rỗng
+                        const createMain = new PutObjectCommand({
+                            Bucket,
+                            Key: prefixNameF,
+                            Body: '',
+                        });
+                        await s3.send(createMain);
+
                     }
+
+                    // 2. Kiểm tra folder con (nameF/bucketName)
+                    const listSubCmd = new ListObjectsV2Command({ Bucket, Prefix: prefixSubFolder });
+                    const listSubResult = await s3.send(listSubCmd);
+
+                    const hasSubFolder = listSubResult.Contents && listSubResult.Contents.length > 0;
+
+                    if (hasSubFolder) {
+                        // Nếu đã có → xoá toàn bộ contents
+                        const deleteCmd = new DeleteObjectsCommand({
+                            Bucket,
+                            Delete: {
+                                Objects: listSubResult.Contents.map(obj => ({ Key: obj.Key })),
+                            },
+                        });
+
+                        await s3.send(deleteCmd);
+                        console.log(`🧹 Đã xoá ${listSubResult.Contents.length} object trong '${prefixSubFolder}'`);
+                    }
+
+                    // 3. Tạo lại folder con rỗng
+                    const createSub = new PutObjectCommand({
+                        Bucket,
+                        Key: prefixSubFolder,
+                        Body: '',
+                    });
+                    await s3.send(createSub);
+
 
                     return true;
                 } catch (err) {
-                    console.error('❌ Lỗi xử lý folder với rclone:', err.message);
+                    console.error('❌ Lỗi xử lý folder:', err.message);
                     return false;
                 }
             }
