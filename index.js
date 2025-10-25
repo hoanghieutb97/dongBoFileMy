@@ -291,21 +291,14 @@ app.post('/webhook/trello', async (req, res) => {
                             const jpgFiles = allFiles.filter(file => file.toLowerCase().endsWith('.jpg'));
                             allJpgFiles.push(...jpgFiles);
                             
-                            // Tạo file filelist.txt với tên file (không có đuôi)
+                            // Tạo file filelist.txt với tên file (có đuôi)
                             const filelistPath = path.join(folder, 'filelist.txt');
-                            const filelistContent = allFiles.map(file => {
-                                // Lấy tên file không có đuôi
-                                const nameWithoutExt = path.parse(file).name;
-                                return nameWithoutExt;
-                            }).join('\n');
+                            const filelistContent = allFiles.join('\n');
                             
                             try {
                                 await fsPromises.writeFile(filelistPath, filelistContent, 'utf8');
-                       
-                                allFiles.forEach((file, index) => {
-                                    const nameWithoutExt = path.parse(file).name;
-                                    
-                                });
+                            
+                           
                             } catch (writeError) {
                                 console.error(`❌ Error creating filelist.txt in ${path.basename(folder)}:`, writeError.message);
                             }
