@@ -219,6 +219,112 @@ app.post('/webhook/trello', async (req, res) => {
                 }
             }
 
+            async function checkTempFolderAndLogJpgs(localFolderPath) {
+                try {
+                    console.log(`🔍 Checking temp folder: ${localFolderPath}`);
+                    
+                    // Tìm thư mục "tem" trong thư mục gốc
+                    const tempPath = path.join(localFolderPath, 'tem');
+                    console.log(`📁 Looking for tem folder: ${tempPath}`);
+                    
+                    // Kiểm tra thư mục tem có tồn tại không
+                    try {
+                        await fsPromises.access(tempPath, fsPromises.constants.F_OK);
+                        console.log(`✅ Found tem folder: ${tempPath}`);
+                    } catch (err) {
+                        console.log(`❌ Tem folder not found: ${tempPath}`);
+                        return { tempPath: null, jpgFiles: [] };
+                    }
+                    
+                    // Tìm các thư mục con cuối cùng trong tem
+                    async function findFinalSubfolders(dirPath) {
+                        const finalFolders = [];
+                        const entries = await fsPromises.readdir(dirPath, { withFileTypes: true });
+                        
+                        for (const entry of entries) {
+                            if (entry.isDirectory() && entry.name !== 'file tool') {
+                                const fullPath = path.join(dirPath, entry.name);
+                                const subEntries = await fsPromises.readdir(fullPath, { withFileTypes: true });
+                                
+                                // Kiểm tra xem có thư mục con nào không
+                                const hasSubDirs = subEntries.some(subEntry => subEntry.isDirectory() && subEntry.name !== 'file tool');
+                                
+                                if (!hasSubDirs) {
+                                    // Đây là thư mục cuối cùng
+                                    finalFolders.push(fullPath);
+                                    console.log(`📂 Final subfolder found: ${fullPath}`);
+                                } else {
+                                    // Có thư mục con, tiếp tục tìm
+                                    const deeperFolders = await findFinalSubfolders(fullPath);
+                                    finalFolders.push(...deeperFolders);
+                                }
+                            }
+                        }
+                        
+                        return finalFolders;
+                    }
+                    
+                    const finalFolders = await findFinalSubfolders(tempPath);
+                    console.log(`📁 Found ${finalFolders.length} final subfolders in tem`);
+                    
+                    // Tìm tất cả file trong các thư mục cuối cùng (trừ filelist.txt)
+                    async function findAllFiles(dirPath) {
+                        const allFiles = [];
+                        const entries = await fsPromises.readdir(dirPath, { withFileTypes: true });
+                        
+                        for (const entry of entries) {
+                            if (entry.isFile() && entry.name !== 'filelist.txt') {
+                                allFiles.push(entry.name);
+                            }
+                        }
+                        
+                        return allFiles;
+                    }
+                    
+                    let allJpgFiles = [];
+                    for (const folder of finalFolders) {
+                        const allFiles = await findAllFiles(folder);
+                        if (allFiles.length > 0) {
+                            console.log(`📁 Found ${allFiles.length} files in ${path.basename(folder)}:`);
+                            allFiles.forEach((file, index) => {
+                                console.log(`  ${index + 1}. ${file}`);
+                            });
+                            
+                            // Lọc ra file JPG để đếm
+                            const jpgFiles = allFiles.filter(file => file.toLowerCase().endsWith('.jpg'));
+                            allJpgFiles.push(...jpgFiles);
+                            
+                            // Tạo file filelist.txt với tên file (không có đuôi)
+                            const filelistPath = path.join(folder, 'filelist.txt');
+                            const filelistContent = allFiles.map(file => {
+                                // Lấy tên file không có đuôi
+                                const nameWithoutExt = path.parse(file).name;
+                                return nameWithoutExt;
+                            }).join('\n');
+                            
+                            try {
+                                await fsPromises.writeFile(filelistPath, filelistContent, 'utf8');
+                                console.log(`📝 Created filelist.txt in ${path.basename(folder)}: ${filelistPath}`);
+                                console.log(`📄 Filelist content (${allFiles.length} files):`);
+                                allFiles.forEach((file, index) => {
+                                    const nameWithoutExt = path.parse(file).name;
+                                    console.log(`  ${index + 1}. ${nameWithoutExt}`);
+                                });
+                            } catch (writeError) {
+                                console.error(`❌ Error creating filelist.txt in ${path.basename(folder)}:`, writeError.message);
+                            }
+                        }
+                    }
+                    
+                    console.log(`📸 Total JPG files found: ${allJpgFiles.length}`);
+                    
+                    return { tempPath, finalFolders, jpgFiles: allJpgFiles };
+                } catch (error) {
+                    console.error('❌ Error checking temp folder:', error.message);
+                    return { tempPath: null, finalFolders: [], jpgFiles: [] };
+                }
+            }
+
             async function uploadFolderToCustomShape(localFolderPath, bucketName, nameFolder, prefix = '') {
                 const { exec } = require('child_process');
                 const { promisify } = require('util');
@@ -228,6 +334,8 @@ app.post('/webhook/trello', async (req, res) => {
                 const s3Path = `${nameF}/${bucketName}/`;
                 
                 try {
+                    // Kiểm tra thư mục temp và log JPG files trước khi upload
+                    await checkTempFolderAndLogJpgs(localFolderPath);
                     // Retry đơn giản: thử tối đa 3 lần với backoff 5s, 10s
                     const maxAttempts = 3;
                     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
