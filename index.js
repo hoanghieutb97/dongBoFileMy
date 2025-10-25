@@ -221,16 +221,16 @@ app.post('/webhook/trello', async (req, res) => {
 
             async function checkTempFolderAndLogJpgs(localFolderPath) {
                 try {
-                    console.log(`🔍 Checking temp folder: ${localFolderPath}`);
+                    
                     
                     // Tìm thư mục "tem" trong thư mục gốc
                     const tempPath = path.join(localFolderPath, 'tem');
-                    console.log(`📁 Looking for tem folder: ${tempPath}`);
+                    
                     
                     // Kiểm tra thư mục tem có tồn tại không
                     try {
                         await fsPromises.access(tempPath, fsPromises.constants.F_OK);
-                        console.log(`✅ Found tem folder: ${tempPath}`);
+                        
                     } catch (err) {
                         console.log(`❌ Tem folder not found: ${tempPath}`);
                         return { tempPath: null, jpgFiles: [] };
@@ -252,7 +252,7 @@ app.post('/webhook/trello', async (req, res) => {
                                 if (!hasSubDirs) {
                                     // Đây là thư mục cuối cùng
                                     finalFolders.push(fullPath);
-                                    console.log(`📂 Final subfolder found: ${fullPath}`);
+                                    
                                 } else {
                                     // Có thư mục con, tiếp tục tìm
                                     const deeperFolders = await findFinalSubfolders(fullPath);
@@ -265,7 +265,7 @@ app.post('/webhook/trello', async (req, res) => {
                     }
                     
                     const finalFolders = await findFinalSubfolders(tempPath);
-                    console.log(`📁 Found ${finalFolders.length} final subfolders in tem`);
+                    
                     
                     // Tìm tất cả file trong các thư mục cuối cùng (trừ filelist.txt)
                     async function findAllFiles(dirPath) {
@@ -285,10 +285,7 @@ app.post('/webhook/trello', async (req, res) => {
                     for (const folder of finalFolders) {
                         const allFiles = await findAllFiles(folder);
                         if (allFiles.length > 0) {
-                            console.log(`📁 Found ${allFiles.length} files in ${path.basename(folder)}:`);
-                            allFiles.forEach((file, index) => {
-                                console.log(`  ${index + 1}. ${file}`);
-                            });
+             
                             
                             // Lọc ra file JPG để đếm
                             const jpgFiles = allFiles.filter(file => file.toLowerCase().endsWith('.jpg'));
@@ -304,11 +301,10 @@ app.post('/webhook/trello', async (req, res) => {
                             
                             try {
                                 await fsPromises.writeFile(filelistPath, filelistContent, 'utf8');
-                                console.log(`📝 Created filelist.txt in ${path.basename(folder)}: ${filelistPath}`);
-                                console.log(`📄 Filelist content (${allFiles.length} files):`);
+                       
                                 allFiles.forEach((file, index) => {
                                     const nameWithoutExt = path.parse(file).name;
-                                    console.log(`  ${index + 1}. ${nameWithoutExt}`);
+                                    
                                 });
                             } catch (writeError) {
                                 console.error(`❌ Error creating filelist.txt in ${path.basename(folder)}:`, writeError.message);
@@ -316,7 +312,7 @@ app.post('/webhook/trello', async (req, res) => {
                         }
                     }
                     
-                    console.log(`📸 Total JPG files found: ${allJpgFiles.length}`);
+                    
                     
                     return { tempPath, finalFolders, jpgFiles: allJpgFiles };
                 } catch (error) {
@@ -424,7 +420,7 @@ app.post('/webhook/trello', async (req, res) => {
                 try {
                     // Sử dụng rclone để xóa folder cũ (nếu có)
                     const deleteCommand = `rclone purge "idrivee2:custom-shape/${s3Path}" --progress`;
-                    console.log(`🧹 Cleaning folder: ${deleteCommand}`);
+                    
                     
                     try {
                         await execAsync(deleteCommand);
