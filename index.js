@@ -340,13 +340,13 @@ app.post('/webhook/trello', async (req, res) => {
                     const maxAttempts = 3;
                     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
                         const command = `rclone copy "${localFolderPath}" "idrivee2:custom-shape/${s3Path}" --exclude "file tool/**" --progress --transfers 4 --retries 5 --retries-sleep 10s --low-level-retries 10`;
-                        console.log(`🔄 Uploading with rclone (attempt ${attempt}/${maxAttempts}): ${command}`);
+                        
                         try {
                             const { stdout, stderr } = await execAsync(command);
                             if (stderr && !stderr.includes('Transferred:')) {
                                 console.error('rclone stderr:', stderr);
                             }
-                            console.log('✅ Upload completed with rclone');
+                         
                             return true;
                         } catch (err) {
                             console.error(`⚠️  rclone upload error (attempt ${attempt}):`, err.message);
