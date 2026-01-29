@@ -75,7 +75,7 @@ async function startNgrok() {
     const params = {
         key: apiKey,
         token: tokenX,
-        callbackURL: "http://103.238.70.219:" + port + "/webhook/trello",
+        callbackURL: "http://123.25.21.83:" + port + "/webhook/trello",
         idModel: idModel,
 
     };
@@ -136,8 +136,7 @@ app.post('/webhook/trello', async (req, res) => {
             url240 = processPath(url240);
 
 
-            let url230 = url240.replace('192.168.1.240\\in', '192.168.1.230\\file-to-us');
-
+   
 
             async function checkDirectoryExists(directoryPath) {
                 try {
@@ -148,111 +147,42 @@ app.post('/webhook/trello', async (req, res) => {
                     return false;
                 }
             }
-            async function deleteFilesInDirectory(directoryPath) {
-                try {
-                    const entries = await fsPromises.readdir(directoryPath, { withFileTypes: true });
 
-                    for (let entry of entries) {
-                        const filePath = path.join(directoryPath, entry.name);
-
-                        if (entry.isFile()) {
-                            await fsPromises.unlink(filePath);
-                        }
-                    }
-
-                } catch (err) {
-                    console.error('Lỗi khi xóa các tệp:');
-                }
-            }
-            async function copyFolder(from, to) {
-                try {
-                    // Tạo thư mục đích nếu chưa tồn tại
-                    await fsPromises.mkdir(to, { recursive: true });
-
-                    // Đọc nội dung của thư mục nguồn
-                    const entries = await fsPromises.readdir(from, { withFileTypes: true });
-
-                    for (let entry of entries) {
-                        const fromPath = path.join(from, entry.name);
-                        const toPath = path.join(to, entry.name);
-
-                        // Bỏ qua thư mục "file tool"
-                        if (entry.name === 'file tool') {
-                            continue;
-                        }
-                        if (entry.isDirectory()) {
-                            // Nếu là thư mục, sao chép đệ quy
-                            await copyFolder(fromPath, toPath);
-                        } else {
-                            // Nếu là tệp, sao chép tệp
-                            await fsPromises.copyFile(fromPath, toPath);
-
-                        }
-                    }
-
-
-                } catch (err) {
-                    console.error(`Lỗi khi sao chép thư mục: ${err}`);
-                }
-            }
-            async function uploadFolder(folderPath, bucketName, prefix = '') {
-                const entries = await fsPromises.readdir(folderPath, { withFileTypes: true });
-
-                for (const entry of entries) {
-                    const fullPath = path.join(folderPath, entry.name);
-                    const key = path.join(prefix, entry.name).replace(/\\/g, '/');
-
-                    if (entry.isDirectory()) {
-                        await uploadFolder(fullPath, bucketName, key);
-                    } else {
-                        const fileStream = fs.createReadStream(fullPath);
-
-                        const command = new PutObjectCommand({
-                            Bucket: bucketName,
-                            Key: key,
-                            Body: fileStream,
-                        });
-
-                        await s3.send(command);
-
-                    }
-                }
-            }
 
             async function checkTempFolderAndLogJpgs(localFolderPath) {
                 try {
-                    
-                    
+
+
                     // Tìm thư mục "tem" trong thư mục gốc
                     const tempPath = path.join(localFolderPath, 'tem');
-                    
-                    
+
+
                     // Kiểm tra thư mục tem có tồn tại không
                     try {
                         await fsPromises.access(tempPath, fsPromises.constants.F_OK);
-                        
+
                     } catch (err) {
                         console.log(`❌ Tem folder not found: ${tempPath}`);
                         return { tempPath: null, jpgFiles: [] };
                     }
-                    
+
                     // Tìm các thư mục con cuối cùng trong tem
                     async function findFinalSubfolders(dirPath) {
                         const finalFolders = [];
                         const entries = await fsPromises.readdir(dirPath, { withFileTypes: true });
-                        
+
                         for (const entry of entries) {
                             if (entry.isDirectory() && entry.name !== 'file tool') {
                                 const fullPath = path.join(dirPath, entry.name);
                                 const subEntries = await fsPromises.readdir(fullPath, { withFileTypes: true });
-                                
+
                                 // Kiểm tra xem có thư mục con nào không
                                 const hasSubDirs = subEntries.some(subEntry => subEntry.isDirectory() && subEntry.name !== 'file tool');
-                                
+
                                 if (!hasSubDirs) {
                                     // Đây là thư mục cuối cùng
                                     finalFolders.push(fullPath);
-                                    
+
                                 } else {
                                     // Có thư mục con, tiếp tục tìm
                                     const deeperFolders = await findFinalSubfolders(fullPath);
@@ -260,53 +190,53 @@ app.post('/webhook/trello', async (req, res) => {
                                 }
                             }
                         }
-                        
+
                         return finalFolders;
                     }
-                    
+
                     const finalFolders = await findFinalSubfolders(tempPath);
-                    
-                    
+
+
                     // Tìm tất cả file trong các thư mục cuối cùng (trừ filelist.txt)
                     async function findAllFiles(dirPath) {
                         const allFiles = [];
                         const entries = await fsPromises.readdir(dirPath, { withFileTypes: true });
-                        
+
                         for (const entry of entries) {
                             if (entry.isFile() && entry.name !== 'filelist.txt') {
                                 allFiles.push(entry.name);
                             }
                         }
-                        
+
                         return allFiles;
                     }
-                    
+
                     let allJpgFiles = [];
                     for (const folder of finalFolders) {
                         const allFiles = await findAllFiles(folder);
                         if (allFiles.length > 0) {
-             
-                            
+
+
                             // Lọc ra file JPG để đếm
                             const jpgFiles = allFiles.filter(file => file.toLowerCase().endsWith('.jpg'));
                             allJpgFiles.push(...jpgFiles);
-                            
+
                             // Tạo file filelist.txt với tên file (có đuôi)
                             const filelistPath = path.join(folder, 'filelist.txt');
                             const filelistContent = allFiles.join('\n');
-                            
+
                             try {
                                 await fsPromises.writeFile(filelistPath, filelistContent, 'utf8');
-                            
-                           
+
+
                             } catch (writeError) {
                                 console.error(`❌ Error creating filelist.txt in ${path.basename(folder)}:`, writeError.message);
                             }
                         }
                     }
-                    
-                    
-                    
+
+
+
                     return { tempPath, finalFolders, jpgFiles: allJpgFiles };
                 } catch (error) {
                     console.error('❌ Error checking temp folder:', error.message);
@@ -315,43 +245,57 @@ app.post('/webhook/trello', async (req, res) => {
             }
 
             async function uploadFolderToCustomShape(localFolderPath, bucketName, nameFolder, prefix = '') {
-                const { exec } = require('child_process');
-                const { promisify } = require('util');
-                const execAsync = promisify(exec);
+                const { spawn } = require("child_process");
 
-                const nameF = nameFolder.split("-").slice(4, 6).join('-'); // ex: across-back
+                const nameF = nameFolder.split("-").slice(4, 6).join('-');
                 const s3Path = `${nameF}/${bucketName}/`;
-                
+
                 try {
-                    // Kiểm tra thư mục temp và log JPG files trước khi upload
                     await checkTempFolderAndLogJpgs(localFolderPath);
-                    // Retry đơn giản: thử tối đa 3 lần với backoff 5s, 10s
+                  
+
                     const maxAttempts = 3;
+
                     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-                        const command = `rclone copy "${localFolderPath}" "idrivee2:custom-shape/${s3Path}" --exclude "file tool/**" --progress --transfers 4 --retries 5 --retries-sleep 10s --low-level-retries 10`;
-                        
-                        try {
-                            const { stdout, stderr } = await execAsync(command);
-                            if (stderr && !stderr.includes('Transferred:')) {
-                                console.error('rclone stderr:', stderr);
-                            }
-                         
-                            return true;
-                        } catch (err) {
-                            console.error(`⚠️  rclone upload error (attempt ${attempt}):`, err.message);
-                            if (attempt < maxAttempts) {
-                                const waitMs = attempt * 5000; // 5s, 10s
-                                await new Promise(r => setTimeout(r, waitMs));
-                                continue;
-                            }
-                            throw err; // ném để catch ngoài xử lý gắn nhãn lỗi
+
+                        const args = [
+                            "copy",
+                            localFolderPath,
+                            `idrivee2:custom-shape/${s3Path}`,
+                            "--exclude", "file tool/**",
+                            "--transfers", "4",
+                            "--retries", "5",
+                            "--retries-sleep", "10s",
+                            "--low-level-retries", "10",
+                            "--log-level", "INFO" // thay cho --progress
+                        ];
+
+                        const ok = await new Promise((resolve) => {
+                            const child = spawn("rclone", args);
+
+                            child.stdout.on("data", d => console.log(d.toString()));
+                            child.stderr.on("data", d => console.error(d.toString()));
+
+                            child.on("close", code => resolve(code === 0));
+                        });
+                      
+                        if (ok) return true;
+
+                        console.log(`⚠️  rclone upload error (attempt ${attempt})`);
+                        if (attempt < maxAttempts) {
+                            await new Promise(r => setTimeout(r, attempt * 5000));
                         }
                     }
+
+                    return false;
+
+
                 } catch (error) {
                     console.error('❌ rclone upload error (final):', error.message);
                     return false;
                 }
             }
+
 
             async function ensureEmptyBucket(bucketName) {
                 try {
@@ -377,111 +321,72 @@ app.post('/webhook/trello', async (req, res) => {
             }
 
 
-            async function createBucket(bucketName) {
 
-
-                try {
-                    const command = new CreateBucketCommand({ Bucket: bucketName });
-                    await s3.send(command);
-
-                    return true;
-                } catch (err) {
-                    if (err.name === 'BucketAlreadyOwnedByYou') {
-
-                        try {
-                            await ensureEmptyBucket(bucketName);
-
-                            return true;
-                        } catch (deleteErr) {
-                            console.error('❌ Lỗi khi xoá/tạo lại:', deleteErr.message);
-                            return false;
-                        }
-                    } else {
-                        console.error('❌ Lỗi tạo bucket:', err.message);
-                        return false;
-                    }
-                }
-            }
             async function createOrResetFolder(bucketName, nameFolder) {
-                const { exec } = require('child_process');
-                const { promisify } = require('util');
-                const execAsync = promisify(exec);
-
-                const nameF = nameFolder.split("-").slice(4, 6).join('-'); // ex: across-back
-                const s3Path = `${nameF}/${bucketName}/`;
-                
                 try {
-                    // Sử dụng rclone để xóa folder cũ (nếu có)
-                    const deleteCommand = `rclone purge "idrivee2:custom-shape/${s3Path}" --progress`;
-                    
-                    
-                    try {
-                        await execAsync(deleteCommand);
-                        console.log(`✅ Cleaned folder: ${s3Path}`);
-                    } catch (deleteError) {
-                        // Folder có thể không tồn tại, không cần báo lỗi
-                        console.log(`ℹ️  Folder ${s3Path} may not exist yet`);
-                    }
+                    const { spawn } = require("child_process");
 
-                    return true;
-                } catch (err) {
-                    console.error('❌ Lỗi xử lý folder với rclone:', err.message);
-                    return false;
+                    const nameF = nameFolder.split("-").slice(4, 6).join('-');
+                    const s3Path = `${nameF}/${bucketName}/`;
+
+                    return new Promise((resolve) => {
+                        const args = [
+                            "purge",
+                            `idrivee2:custom-shape/${s3Path}`,
+                            "--log-level", "INFO" // đỡ spam hơn --progress
+                        ];
+
+                        const child = spawn("rclone", args);
+
+                        child.stdout.on("data", (d) => {
+                            // console.log(d.toString());
+                        });
+
+                        child.stderr.on("data", (d) => {
+                            // console.log(d.toString());
+                        });
+
+                        child.on("close", (code) => {
+                            if (code === 0) {
+                                // console.log(`✅ Cleaned folder: ${s3Path}`);
+                                resolve(true);
+                            } else {
+                                console.log(`ℹ️  Folder ${s3Path} may not exist yet`);
+                                resolve(true);
+                            }
+                        });
+                    });
+                } catch (error) {
+                    log("eeeeerrrr", error)
                 }
+
             }
 
-            function generateBucketNameFromUNCPath(uncPath) {
-                if (!uncPath || typeof uncPath !== 'string') return '';
-
-                // Lấy phần cuối sau dấu \
-                const parts = uncPath.split('\\').filter(Boolean);
-                const folderName = parts[parts.length - 1];
-
-                // Làm sạch: chữ thường, thay đặc biệt bằng -, gộp -, xóa đầu/cuối -
-                let bucketName = folderName
-                    .toLowerCase()
-                    .replace(/[^a-z0-9-]/g, '-')    // thay đặc biệt bằng -
-                    .replace(/-+/g, '-')            // gộp dấu -
-                    .replace(/^-|-$/g, '');         // xóa đầu/cuối -
-
-                bucketName = bucketName.length > 63 ? bucketName.slice(0, 63) : bucketName;
-                bucketName = bucketName.replace(/^-+|-+$/g, ''); // xoá dấu - đầu/cuối
-                return bucketName;
-            }
 
 
             let sttUrl240 = await checkDirectoryExists(url240);
-            let sttUrl230 = await checkDirectoryExists(url230);
-            // console.log(url240, sttUrl240);
-            // console.log(url230, sttUrl230);
 
 
+        
             if (!stt.sttCopy) {// neu chua co nhan da copy
                 if (sttUrl240) { // neu 240 ton tai thu muc
 
-                    // if (sttUrl230) { // neu 230 ton tai thu muc
-                    //     await deleteFilesInDirectory(url230);
 
-
-                    // }
 
                     try {
-                        // await copyFolder(url240, url230);
 
-                        // axios.post(`https://api.trello.com/1/cards/${req.body.action.data.card.id}/idLabels`, {
-                        //     value: "686f7071bf8196b83bb0d4b7",
-                        //     key: 'eaab65cdb6b3f930891953f93327e65e',
-                        //     token: "ATTA9890326a872fc0376b216d80d4582602fcf88703471fda6cb1b13f33b6c9702008C31C28"
-                        // })
 
                         const parts = url240.split('\\').filter(Boolean);
                         const nameBucket = parts[parts.length - 1];
 
                         let SttCreateNameBucket = await createOrResetFolder(nameBucket, req.body.action.data.card.name); // thay tên nếu m
-                        // console.log(" băt dau up load file");
+                  
+                    
 
                         if (SttCreateNameBucket)
                             try {
+                    
+
                                 await uploadFolderToCustomShape(url240, nameBucket, req.body.action.data.card.name); // upload file vào thư mục đó trong custom-shape
                                 var url2 = `https://api.trello.com/1/cards/${req.body.action.data.card.id}/actions/comments?key=eaab65cdb6b3f930891953f93327e65e&token=ATTA9890326a872fc0376b216d80d4582602fcf88703471fda6cb1b13f33b6c9702008C31C28`
                                 axios.post(url2, { text: nameBucket }, {
@@ -504,7 +409,7 @@ app.post('/webhook/trello', async (req, res) => {
 
                                 })
                                     .catch(err => {
-                                        console.error("❌ Lỗi khi card Trello:", err.message);
+                                        console.error("❌ aaa Lỗi khi card Trello:", err.message);
                                     });
 
                             } catch (error) {
@@ -545,7 +450,7 @@ app.post('/webhook/trello', async (req, res) => {
                 }
             }
             // console.log(stt);
-            console.log("-done-", req.body.action.data.card.name);
+            console.log("-done-222222", req.body.action.data.card.name);
         }
 
 
