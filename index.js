@@ -16,15 +16,16 @@ const archiver = require('archiver');
 const { S3Client, PutObjectCommand, ListObjectsV2Command, CreateBucketCommand, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
 const { Upload } = require('@aws-sdk/lib-storage');
 const s3 = new S3Client({
-    region: 'us-east-1',
-    endpoint: 'https://h8f2.sg04.idrivee2-95.com',
+    region: 'us-west-2',
+    endpoint: 'https://o0r8.la1.idrivee2-84.com',
     credentials: {
-        accessKeyId: '8MpMlZcdipJtjGMQVj4F',
-        secretAccessKey: 'NoVcyAoEy33dFbGEZT9PGeeJvq3yWSBa3wcTSE2X',
+        accessKeyId: 'PY8I5eb4Hp7PIeFNRcec',
+        secretAccessKey: 'HAIIdEvUsGQz0XrE01xH3Fe9izI6waLKoB3zfY4T',
     },
     forcePathStyle: true, // idrive cần cái này
 });
-
+const RCLONE_PATH =
+  "C:\\Users\\Administrator\\Desktop\\rclone-v1.74.4-windows-amd64\\rclone-v1.74.4-windows-amd64\\rclone.exe";
 
 const apiKey = '4ab2789218e562d5eee1b5cc9c0a72f6';
 const tokenX = 'ATTAe7cd4c745f63ae54df2577566a5bc194802e80367f2327bb9259058ba41232162FEC0C48';
@@ -271,7 +272,9 @@ app.post('/webhook/trello', async (req, res) => {
                         ];
 
                         const ok = await new Promise((resolve) => {
-                            const child = spawn("rclone", args);
+                            // const child = spawn("rclone", args);
+                            const child = spawn(RCLONE_PATH, args);
+                            
 
                             child.stdout.on("data", d => console.log(d.toString()));
                             child.stderr.on("data", d => console.error(d.toString()));
@@ -336,7 +339,8 @@ app.post('/webhook/trello', async (req, res) => {
                             "--log-level", "INFO" // đỡ spam hơn --progress
                         ];
 
-                        const child = spawn("rclone", args);
+                        // const child = spawn("rclone", args);
+                            const child = spawn(RCLONE_PATH, args);
 
                         child.stdout.on("data", (d) => {
                             // console.log(d.toString());
